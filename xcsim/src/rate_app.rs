@@ -1,0 +1,280 @@
+xcsim_core_l10n::tl_file!("rate");
+
+use crate::page::Fader;
+use lyon::math::point;
+use lyon::path::Path;
+use macroquad::prelude::*;
+use std::f32::consts::PI;
+use xcsim_core::{
+    ext::{semi_black, RectExt},
+    ui::{DRectButton, Ui},
+};
+
+fn star_path(cx: f32, cy: f32, r: f32) -> Path {
+    let inner_r = r * 0.382;
+    let mut b = Path::builder();
+    for i in 0..10u32 {
+        let angle = -PI / 2. + i as f32 * PI / 5.;
+        let rad = if i % 2 == 0 { r } else { inner_r };
+        let x = cx + rad * angle.cos();
+        let y = cy + rad * angle.sin();
+        if i == 0 {
+            b.begin(point(x, y));
+        } else {
+            b.line_to(point(x, y));
+        }
+    }
+    b.close();
+    b.build()
+}
+
+pub struct Rate {
+    pub score: i16,
+
+    touch_x: Option<f32>,
+    touch_rect: Rect,
+}
+
+impl Rate {
+    pub fn new() -> Self {
+        Self {
+            score: 0,
+            touch_x: None,
+            touch_rect: Rect::default(),
+        }
+    }
+
+    pub fn touch(&mut self, touch: &Touch) {
+        if self.touch_x.is_some() || self.touch_rect.contains(touch.position) {
+            if matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled) {
+                self.touch_x = None;
+            } else {
+                self.touch_x = Some(touch.position.x);
+            }
+        }
+    }
+
+    pub fn render(&mut self, ui: &mut Ui) -> Rect {
+        let filled_c = Color::new(0.984, 0.973, 0.886, 1.);
+        let empty_c  = Color::new(0.38, 0.38, 0.38, 1.);
+
+        let wr = Ui::dialog_rect();
+        ui.scope(|ui| {
+            ui.dx(wr.center().x);
+            let s = 0.1;
+            let r = s / 2.;
+            let pad = 0.03;
+            let tw = s * 2.5 + pad * 2.;
+
+            self.touch_rect = ui.rect_to_global(Rect::new(-tw, 0., tw * 2., s));
+
+            if let Some(x) = self.touch_x {
+                let rw = (x - self.touch_rect.x) / self.touch_rect.w * tw * 2. + pad;
+                let index = (rw / (pad + s)) as i16;
+                let rem = rw - index as f32 * (pad + s);
+                self.score = index * 2;
+                if rem > pad / 2. {
+                    self.score += 1;
+                    if rem > pad + s / 2. {
+                        self.score += 1;
+                    }
+                }
+                self.score = self.score.clamp(0, 10);
+            }
+
+            for i in 0i16..5 {
+                let cx = (i as f32 - 2.) * (pad + s);
+                let cy = s / 2.;
+
+                let full = self.score >= (i + 1) * 2;
+                let half = !full && self.score == i * 2 + 1;
+
+                if full {
+
+                    ui.fill_path(&star_path(cx, cy, r), filled_c);
+                } else if half {
+
+                    ui.stroke_path(&star_path(cx, cy, r), 0.008, empty_c);
+
+                    let clip = Rect::new(cx - r, cy - r, r, r * 2.);
+                    ui.scissor(clip, |ui| {
+                        ui.fill_path(&star_path(cx, cy, r), filled_c);
+                    });
+                } else {
+
+                    ui.stroke_path(&star_path(cx, cy, r), 0.008, empty_c);
+                }
+            }
+        });
+        self.touch_rect
+    }
+}
+
+pub struct RateDialog {
+    fader: Fader,
+    show: bool,
+
+    btn_cancel: DRectButton,
+    btn_confirm: DRectButton,
+    btn_tags: DRectButton,
+    pub confirmed: Option<bool>,
+    pub show_tags: bool,
+
+    pub rate: Rate,
+    pub rate_upper: Option<Rate>,
+}
+
+impl RateDialog {
+    pub fn new(range: bool) -> Self {
+        Self {
+            fader: Fader::new().with_distance(-0.4).with_time(0.5),
+            show: false,
+
+            btn_cancel: DRectButton::new(),
+            btn_confirm: DRectButton::new(),
+            btn_tags: DRectButton::new(),
+            confirmed: None,
+            show_tags: false,
+
+            rate: Rate::new(),
+            rate_upper: if range { Some(Rate::new()) } else { None },
+        }
+    }
+
+    pub fn showing(&self) -> bool {
+        self.show || self.fader.transiting()
+    }
+
+    pub fn enter(&mut self, t: f32) {
+        self.show = true;
+        self.fader.sub(t);
+    }
+
+    fn dialog_rect(&self) -> Rect {
+        Ui::dialog_rect().nonuniform_feather(0., if self.rate_upper.is_some() { -0.02 } else { -0.1 })
+    }
+
+    pub fn dismiss(&mut self, t: f32) {
+        self.show = false;
+        self.fader.back(t);
+    }
+
+    pub fn touch(&mut self, touch: &Touch, t: f32) -> bool {
+        if !self.show && self.fader.transiting() {
+            return true;
+        }
+        if self.show {
+            if !self.dialog_rect().contains(touch.position) && touch.phase == TouchPhase::Started {
+                self.dismiss(t);
+                return true;
+            }
+            if self.btn_cancel.touch(touch, t) {
+                self.confirmed = Some(false);
+                self.dismiss(t);
+                return true;
+            }
+            if self.btn_confirm.touch(touch, t) {
+                if self.rate.score != 0 {
+                    self.confirmed = Some(true);
+                }
+                return true;
+            }
+            if self.btn_tags.touch(touch, t) {
+                self.show_tags = true;
+                self.dismiss(t);
+                return true;
+            }
+            self.rate.touch(touch);
+            if let Some(upper) = &mut self.rate_upper {
+                upper.touch(touch);
+            }
+            return true;
+        }
+        false
+    }
+
+    pub fn update(&mut self, t: f32) {
+        if let Some(done) = self.fader.done(t) {
+            self.show = !done;
+        }
+    }
+
+    pub fn render(&mut self, ui: &mut Ui, t: f32) {
+        self.fader.reset();
+        if self.show || self.fader.transiting() {
+            let p = if self.show { 1. } else { -self.fader.progress(t) };
+            ui.fill_rect(ui.screen_rect(), semi_black(p * 0.7));
+            let wr = self.dialog_rect();
+            let accent     = crate::theme::FIREFLY_PINK_DEEP;
+            let body_bg    = Color::new(0.165, 0.110, 0.180, 1.);
+            let dark_text  = Color::new(0.984, 0.973, 0.886, 1.);
+            let muted_text = Color::new(0.65, 0.65, 0.65, 1.);
+            let border_col = Color::new(1.0, 0.776, 0.847, 0.45);
+            let title_h = 0.10_f32;
+            let bh = 0.075_f32;
+            let btn_pad = 0.016_f32;
+            let btn_w = 0.18_f32;
+            self.fader.for_sub(|f| {
+                f.render(ui, t, |ui| {
+                    ui.fill_path(&wr.feather(0.014).rounded(0.05), Color::new(0.949, 0.412, 0.580, 0.40));
+                    ui.fill_path(&wr.rounded(0.04), body_bg);
+                    let title_r = Rect::new(wr.x, wr.y, wr.w, title_h);
+                    ui.text(if self.rate_upper.is_some() { tl!("filter") } else { tl!("rate") })
+                        .pos(wr.x + 0.03, title_r.center().y)
+                        .anchor(0., 0.5)
+                        .no_baseline()
+                        .size(0.54)
+                        .color(dark_text)
+                        .draw();
+                    ui.fill_path(&Rect::new(wr.x + 0.03, wr.y + title_h - 0.006, 0.14, 0.006).rounded(0.003), accent);
+
+                    ui.scope(|ui| {
+                        ui.dy(wr.y + title_h + 0.04);
+                        if self.rate_upper.is_some() {
+                            let h = ui.text(tl!("lower-bound")).pos(wr.center().x, 0.).anchor(0.5, 0.).size(0.5).color(muted_text).draw().h;
+                            ui.dy(h + 0.02);
+                        } else {
+                            ui.dy(0.03);
+                        }
+                        let h = self.rate.render(ui).h;
+                        if let Some(upper) = &mut self.rate_upper {
+                            upper.score = upper.score.max(self.rate.score);
+                        }
+                        ui.dy(h + 0.03);
+                        if let Some(upper) = &mut self.rate_upper {
+                            let h = ui.text(tl!("upper-bound")).pos(wr.center().x, 0.).anchor(0.5, 0.).size(0.5).color(muted_text).draw().h;
+                            ui.dy(h + 0.02);
+                            upper.render(ui);
+                            self.rate.score = self.rate.score.min(upper.score);
+                        }
+                    });
+
+                    let by = wr.bottom() - btn_pad - bh;
+                    if self.rate_upper.is_none() {
+                        let mut bx = wr.right() - btn_pad;
+                        bx -= btn_w;
+                        let r = Rect::new(bx, by, btn_w, bh);
+                        self.btn_confirm.render_shadow(ui, r, t, |ui, path| {
+                            ui.fill_path(&path, accent);
+                            ui.text(tl!("confirm")).pos(r.center().x, r.center().y).anchor(0.5, 0.5).no_baseline().size(0.42).color(WHITE).draw();
+                        });
+                        bx -= btn_pad + btn_w;
+                        let r = Rect::new(bx, by, btn_w, bh);
+                        self.btn_cancel.render_shadow(ui, r, t, |ui, _path| {
+                            let p = r.rounded(0.008);
+                            ui.fill_path(&p, body_bg);
+                            ui.stroke_path(&p, 0.005, border_col);
+                            ui.text(tl!("cancel")).pos(r.center().x, r.center().y).anchor(0.5, 0.5).no_baseline().size(0.42).color(dark_text).draw();
+                        });
+                    } else {
+                        let r = Rect::new(wr.x + btn_pad, by, wr.w - btn_pad * 2., bh);
+                        self.btn_tags.render_shadow(ui, r, t, |ui, path| {
+                            ui.fill_path(&path, accent);
+                            ui.text(tl!("filter-by-tags")).pos(r.center().x, r.center().y).anchor(0.5, 0.5).no_baseline().size(0.42).color(WHITE).draw();
+                        });
+                    }
+                });
+            });
+        }
+    }
+}

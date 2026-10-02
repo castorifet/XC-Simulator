@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cargo check -p phira 2>&1)",
+      "Bash(cargo check *)",
+      "Bash(xargs wc -l)"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+[package]
+name = "xc-sim-main"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[features]
+default = ["video"]
+video = ["xc-sim/video"]
+internal = ["xc-sim/internal"]
+
+[dependencies]
+xc-sim = { workspace = true, default-features = false }

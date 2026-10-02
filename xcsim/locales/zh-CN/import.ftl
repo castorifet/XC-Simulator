@@ -1,0 +1,27 @@
+
+info-fail = 加载谱面信息失败
+invalid-chart = 无效的谱面
+
+importing = 导入中
+import-success = 导入成功
+import-failed = 导入失败
+import-respack-success = 导入资源包成功
+import-respack-failed = 导入资源包失败
+respack-copyright-title = 版权提示
+respack-copyright-body =
+  该资源包与黑名单中的受版权保护内容相符，无法导入。
+  请使用你拥有合法权利的资源包。
+
+batch-import = 批量导入
+batch-importing = 批量导入中 ({ $current }/{ $total })
+batch-import-confirm = 检测到批量导入数据，是否导入全部 { $count } 张谱面？
+batch-import-success = 成功导入 { $count } 个谱面。
+batch-import-downloaded-skipped = 已经下载过而跳过的谱面：{ $charts }
+batch-import-failed = 批量导入失败
+batch-import-failed-chart = 批量导入失败: { $chart }
+
+warning = 警告
+warning-new-speed-event = 该谱面使用了 RPE 1.7.0 引入的速度事件缓动。为兼容性考虑，Phira 默认不启用对该事件的支持。如果需要启用，请在谱面信息中勾选“新速度缓动”。
+
+respack-sensitive-title = 敏感内容
+respack-sensitive-body = 该资源包的信息包含敏感内容，无法导入。
