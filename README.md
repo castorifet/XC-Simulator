@@ -1,5 +1,3 @@
 # XC-SIM
 
-Outdated repo. Please do not use this.
-
-Archived, check for new repo later.
+- [Official Phira Link](https://github.com/TeamFlos/phira)
